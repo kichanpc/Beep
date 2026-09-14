@@ -184,9 +184,9 @@
         setTimeout(async () => {
           try {
             const result = await transcriber(pcmData, {
-              language: 'yue',
+              language: 'chinese',
               task: 'transcribe',
-              prompt: '以下係學生日常廣東話分享，包含常見校園英文：presentation, quiz, project, exam, deadline, 唔該, 真係好攰, 好煩, 溫習。輸出繁體粵語口語。'
+              prompt: '以下係一段學生日常廣東話校園分享，包含常見英文：presentation, quiz, project, exam, deadline, 唔該, 真係好攰, 好煩, 溫習。請用香港繁體粵語口語輸出。'
             });
 
             const rawText = (result.text || "").trim();
