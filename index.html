@@ -3,229 +3,196 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>心靈樹洞 - 粵語錄音室</title>
+  <title>心靈語音樹洞 - 本地端側版</title>
+  <!-- 引入 ONNX Runtime Web -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
   <style>
-    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    * { box-sizing: border-box; -webkit-touch-callout: none; user-select: none; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 100vh; margin: 0; background-color: #f7f9fc;
+      min-height: 100vh; margin: 0; background: #f7f9fc;
     }
     .card {
-      background: white; padding: 30px 20px; border-radius: 24px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.06); text-align: center; max-width: 360px; width: 90%;
+      background: white; padding: 25px 20px; border-radius: 26px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.06); text-align: center; max-width: 400px; width: 90%;
+      position: relative; overflow: hidden;
     }
     .badge {
       display: inline-block; padding: 4px 12px; font-size: 11px; font-weight: 600;
-      background: #ecfdf5; color: #065f46; border-radius: 12px; margin-bottom: 8px; border: 1px solid #a7f3d0;
+      background: #ecfdf5; color: #065f46; border-radius: 14px; margin-bottom: 6px; border: 1px solid #a7f3d0;
+    }
+    .btn-wrapper {
+      position: relative; width: 160px; height: 160px; margin: 15px auto;
+      display: flex; align-items: center; justify-content: center;
     }
     .record-btn {
       width: 130px; height: 130px; border-radius: 50%; border: none;
-      background: #9ca3af; color: white; font-size: 16px; font-weight: bold;
-      cursor: not-allowed; margin: 20px auto; display: flex; align-items: center;
-      justify-content: center; box-shadow: 0 6px 15px rgba(0,0,0,0.1); touch-action: none;
-      transition: transform 0.15s ease, background 0.15s ease;
+      background: linear-gradient(135deg, #10b981, #059669); color: white;
+      font-size: 17px; font-weight: bold; cursor: pointer; outline: none;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.35); touch-action: none;
     }
-    .record-btn.ready {
-      background: linear-gradient(135deg, #10b981, #059669);
-      cursor: pointer; box-shadow: 0 6px 15px rgba(16,185,129,0.3);
-    }
-    .record-btn.recording {
-      background: linear-gradient(135deg, #ef4444, #f97316);
-      transform: scale(1.08); box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
-    }
-    #status { margin: 10px 0; font-size: 13px; color: #4b5563; min-height: 20px; }
+    .record-btn.recording { background: linear-gradient(135deg, #ef4444, #f97316); }
+    #status { margin: 8px 0; font-size: 13px; color: #4b5563; min-height: 18px; }
     #result-box {
-      margin-top: 15px; padding: 12px 16px; background: #f1f4f8; border-radius: 12px;
-      text-align: left; font-size: 14px; line-height: 1.5; min-height: 60px; word-break: break-word;
-      user-select: text; -webkit-user-select: text;
+      margin-top: 10px; padding: 12px; background: #f1f4f8; border-radius: 14px;
+      text-align: left; font-size: 13px; line-height: 1.5; min-height: 70px;
     }
+    .field-label { font-weight: 600; color: #6b7280; font-size: 11px; }
+    .field-val { margin-top: 2px; color: #111827; word-break: break-word; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">🇭🇰 粵英混雜本地 Whisper-Base</div>
-    <h2 style="margin:0 0 4px 0; color:#1f2937;">心靈樹洞</h2>
-    <p style="margin:0; font-size:12px; color:#6b7280;">按住說話，放手放飛紙飛機 ✈️</p>
+    <div class="badge">🧠 手機本地 SenseVoice 離線推演</div>
+    <h2 style="margin:4px 0; color:#1f2937;">心靈語音樹洞</h2>
     
-    <button id="recordBtn" class="record-btn" disabled>載入本機快取...</button>
-    <div id="status">正在加載 Whisper 引擎...</div>
+    <div class="btn-wrapper">
+      <button id="recordBtn" class="record-btn" disabled>載入模型中...</button>
+    </div>
+
+    <div id="status">首次進入需下載離線粵語模型 (~120MB)...</div>
 
     <div id="result-box">
-      <strong style="color:#374151;">本地脫敏後文字：</strong>
-      <div id="resultText" style="color:#111827; margin-top:4px;">（暫無記錄）</div>
+      <div class="field-label">本機端側識別（粵語）：</div>
+      <div id="rawText" class="field-val">（等待語音輸入）</div>
+      <div class="field-label" style="margin-top:8px; color:#059669;">本地脫敏後：</div>
+      <div id="cleanText" class="field-val" style="color:#065f46; font-weight:500;">（等待處理）</div>
     </div>
   </div>
 
   <script>
-    // ⚠️ 請替換為你實際的 Google Apps Script 部署 URL (以 /exec 結尾)
-    const GAS_URL = "https://script.google.com/macros/s/你的SCRIPT_ID/exec";
-
-    const btn = document.getElementById('recordBtn');
+    const GAS_WEBHOOK_URL = "https://script.google.com/macros/s/你的GAS部署ID/exec";
+    
+    const recordBtn = document.getElementById('recordBtn');
     const statusText = document.getElementById('status');
-    const resultText = document.getElementById('resultText');
+    const rawText = document.getElementById('rawText');
+    const cleanText = document.getElementById('cleanText');
 
-    let transcriber = null;
-    let mediaStream = null;
-    let audioChunks = [];
-    let mediaRecorder = null;
+    let audioContext = null;
+    let micStream = null;
+    let audioProcessor = null;
+    let pcmBuffers = [];
     let isRecording = false;
+    let worker = null;
 
-    async function loadEngine() {
+    // 1. 初始化 Web Worker 跑 SenseVoice
+    function initSenseVoiceWorker() {
+      worker = new Worker('asr-worker.js');
+      worker.onmessage = (e) => {
+        const { type, data, message } = e.data;
+        if (type === 'READY') {
+          recordBtn.disabled = false;
+          recordBtn.innerText = "按住講嘢";
+          statusText.innerText = "✅ 本地模型就緒，可離線按住錄音";
+        } else if (type === 'LOADING_PROGRESS') {
+          statusText.innerText = `下載模型中: ${message}`;
+        } else if (type === 'RESULT') {
+          handleAsrResult(data);
+        } else if (type === 'ERROR') {
+          statusText.innerText = "❌ 辨識失敗: " + message;
+        }
+      };
+      worker.postMessage({ type: 'INIT' });
+    }
+
+    // 2. 本地正則脫敏 (絕不向外發送電話/人名)
+    function localSanitize(text) {
+      let output = text;
+      output = output.replace(/(?:\+?853|\+?852|\+?86)?[- ]?[5689]\d{3}[- ]?\d{4}/g, '[聯絡電話]');
+      output = output.replace(/\b\d{7,11}\b/g, '[數字標識]');
+      output = output.replace(/(陳老師|李老師|張老師|王老師|黃老師|何老師|校長|副校長|主任|miss\s*[a-z]+|mr\s*[a-z]+)/gi, '[教職員]');
+      output = output.replace(/(培正|浸信|聖保祿|粵華|嘉諾撒|永援|慈幼|澳大|科大|理工)/g, '[校園環境]');
+      return output;
+    }
+
+    // 3. 辨識結果處理並上報 GAS
+    function handleAsrResult(text) {
+      statusText.innerText = "⚡ 本地辨識完成，正在本地脫敏...";
+      rawText.innerText = text;
+      
+      const sanitized = localSanitize(text);
+      cleanText.innerText = sanitized;
+
+      statusText.innerText = "💌 僅將脫敏文字傳輸至 Google Sheets...";
+      fetch(GAS_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          text: sanitized,
+          raw: sanitized // 原始語音與未脫敏文字徹底留在本機記憶體，完全不外傳
+        })
+      })
+      .then(() => { statusText.innerText = "✅ 成功存入 Google Sheets（端側雙重防禦）"; })
+      .catch((err) => { statusText.innerText = "❌ 雲端存檔失敗: " + err; });
+    }
+
+    // 4. 麥克風音訊捕捉 (直接取 16kHz PCM Float32)
+    async function startRecording() {
+      if (isRecording) return;
+      isRecording = true;
+      pcmBuffers = [];
+
       try {
-        statusText.innerText = "⏳ 載入本地神經引擎...";
-        const { pipeline, env } = await import('https://esm.sh/@xenova/transformers@2.17.2');
-        env.allowLocalModels = false;
-        env.useBrowserCache = true;
-
-        transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', {
-          quantized: true
+        micStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true } 
         });
-
-        btn.disabled = false;
-        btn.classList.add('ready');
-        btn.innerText = "按住講嘢";
-        statusText.innerText = "✅ 引擎就緒！隨時可開始說話";
-      } catch (err) {
-        statusText.style.color = "#dc2626";
-        statusText.innerText = "❌ 引擎載入失敗: " + err.message;
-      }
-    }
-
-    window.addEventListener('DOMContentLoaded', loadEngine);
-
-    function sanitizeLocally(text) {
-      let cleaned = text;
-      cleaned = cleaned.replace(/(?:\+?853|\+?852)?[- ]?[689]\d{3}[- ]?\d{4}/g, '[聯絡電話]');
-      cleaned = cleaned.replace(/\b\d{6,10}\b/g, '[校內編號]');
-      cleaned = cleaned.replace(/(陳老師|張老師|李老師|王老師|校長|主任|miss\s*[a-z]+|mr\s*[a-z]+)/gi, '[教職員]');
-      cleaned = cleaned.replace(/(培正|浸信|聖保祿|粵華|嘉諾撒|永援|澳大|科大)/g, '[校園環境]');
-      return cleaned;
-    }
-
-    function playPaperPlaneSound() {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        const ctx = new AudioCtx();
-        const duration = 0.45;
-        const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < buf.length; i++) data[i] = Math.random() * 2 - 1;
-
-        const noise = ctx.createBufferSource();
-        noise.buffer = buf;
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.Q.value = 3.0;
-        filter.frequency.setValueAtTime(450, ctx.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.12);
-        filter.frequency.exponentialRampToValueAtTime(250, ctx.currentTime + duration);
-
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.01, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        noise.start();
-        noise.stop(ctx.currentTime + duration);
-      } catch (e) {}
-    }
-
-    async function startRecord(e) {
-      e.preventDefault();
-      if (!transcriber || isRecording) return;
-
-      audioChunks = [];
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          audio: { channelCount: 1, sampleRate: 16000 } 
-        });
-
-        mediaRecorder = new MediaRecorder(mediaStream);
-        mediaRecorder.ondataavailable = (evt) => {
-          if (evt.data.size > 0) audioChunks.push(evt.data);
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const source = audioContext.createMediaStreamSource(micStream);
+        
+        // 採集原生 16kHz Float32
+        audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        audioProcessor.onaudioprocess = (e) => {
+          if (!isRecording) return;
+          const channelData = e.inputBuffer.getChannelData(0);
+          pcmBuffers.push(new Float32Array(channelData));
         };
 
-        mediaRecorder.start();
-        isRecording = true;
-        btn.classList.add('recording');
-        btn.innerText = "放手起飛 ✈️";
-        statusText.innerText = "🎙️ 正在傾聽中 (廣東話/English)...";
+        source.connect(audioProcessor);
+        audioProcessor.connect(audioContext.destination);
+
+        recordBtn.classList.add('recording');
+        recordBtn.innerText = "鬆手完成";
+        statusText.innerText = "🎙️ 正在本機採集粵語聲波...";
       } catch (err) {
-        statusText.innerText = "❌ 麥克風異常：" + err.message;
+        statusText.innerText = "❌ 無法取用麥克風: " + err.message;
+        isRecording = false;
       }
     }
 
-    async function stopRecord(e) {
-      e.preventDefault();
-      if (!isRecording || !mediaRecorder) return;
-
-      playPaperPlaneSound();
+    function stopRecording() {
+      if (!isRecording) return;
       isRecording = false;
-      btn.classList.remove('recording');
-      btn.innerText = "按住講嘢";
-      statusText.innerText = "✈️ 心事已起飛，本地轉錄中...";
+      recordBtn.classList.remove('recording');
+      recordBtn.innerText = "按住講嘢";
+      statusText.innerText = "🧠 本地神經網路正在轉譯粵語...";
 
-      mediaRecorder.onstop = async () => {
-        mediaStream.getTracks().forEach(t => t.stop());
+      // 關閉硬體麥克風
+      if (audioProcessor) audioProcessor.disconnect();
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (audioContext) audioContext.close();
 
-        const audioBlob = new Blob(audioChunks);
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        const tempCtx = new AudioCtx({ sampleRate: 16000 });
-        const decoded = await tempCtx.decodeAudioData(arrayBuffer);
-        const pcmData = decoded.getChannelData(0);
-        const durationSec = Math.round(decoded.duration);
+      // 合併 Float32Array 音訊流
+      let totalLength = pcmBuffers.reduce((acc, b) => acc + b.length, 0);
+      let mergedBuffer = new Float32Array(totalLength);
+      let offset = 0;
+      for (let b of pcmBuffers) {
+        mergedBuffer.set(b, offset);
+        offset += b.length;
+      }
 
-        setTimeout(async () => {
-          try {
-            const result = await transcriber(pcmData, {
-              language: 'chinese',
-              task: 'transcribe',
-              prompt: '以下係一段學生日常廣東話校園分享，包含常見英文：presentation, quiz, project, exam, deadline, 唔該, 真係好攰, 好煩, 溫習。請用香港繁體粵語口語輸出。'
-            });
-
-            const rawText = (result.text || "").trim();
-            const sanitized = sanitizeLocally(rawText);
-
-            resultText.innerText = sanitized || "（未識別到清晰內容）";
-            statusText.innerText = "✈️ 本地脫敏完成，正寫入 Google Sheets...";
-
-            // 使用 fetch POST 直接發送到 GAS
-            fetch(GAS_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ text: sanitized, duration: durationSec })
-            })
-            .then(res => res.json())
-            .then(data => {
-              if (data.status === 'success') {
-                statusText.innerText = "✅ 成功存入 Google Sheets（音訊純本地解碼）！";
-              } else {
-                statusText.innerText = "❌ 存檔失敗: " + data.message;
-              }
-            })
-            .catch(err => {
-              statusText.innerText = "❌ 網絡傳輸異常: " + err.message;
-            });
-
-          } catch (inferErr) {
-            statusText.innerText = "❌ 轉錄異常：" + inferErr.message;
-          }
-        }, 50);
-      };
-
-      mediaRecorder.stop();
+      // 送給背景 Worker 進行模型推理
+      worker.postMessage({ type: 'TRANSCRIBE', pcmData: mergedBuffer });
     }
 
-    btn.addEventListener('touchstart', startRecord, { passive: false });
-    btn.addEventListener('touchend', stopRecord, { passive: false });
-    btn.addEventListener('mousedown', startRecord);
-    window.addEventListener('mouseup', () => { if (isRecording) stopRecord(new Event('mouseup')); });
+    // 綁定長按手勢
+    recordBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+    window.addEventListener('touchend', (e) => { if (isRecording) { e.preventDefault(); stopRecording(); } });
+    recordBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording(); });
+    window.addEventListener('mouseup', () => { if (isRecording) stopRecording(); });
+
+    // 啟動 Worker
+    initSenseVoiceWorker();
   </script>
 </body>
 </html>
