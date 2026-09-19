@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>心靈樹洞 - 邊緣運算傾聽室</title>
+  <style>
+    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; background-color: #f7f9fc; overflow: hidden;
+    }
+    .card {
+      background: white; padding: 24px 20px; border-radius: 28px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.06); text-align: center; max-width: 420px; width: 92%;
+      position: relative; overflow: hidden;
+    }
+    .badge {
+      display: inline-block; padding: 4px 14px; font-size: 11px; font-weight: 600;
+      background: #ecfdf5; color: #065f46; border-radius: 14px; margin-bottom: 6px; border: 1px solid #a7f3d0;
+    }
+    .animation-container { width: 100%; height: 50px; margin: 2px 0; display: flex; align-items: center; justify-content: center; }
+    #beepSvg { width: 180px; height: 50px; display: none; }
+    .handwrite-path {
+      fill: none; stroke: #10b981; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round;
+      stroke-dasharray: 600; stroke-dashoffset: 600; transition: stroke 0.2s ease;
+    }
+    .handwrite-path.cancelling { stroke: #ef4444 !important; }
+    .handwrite-active { animation: drawBeep 20s linear forwards; }
+    @keyframes drawBeep { 0% { stroke-dashoffset: 600; } 100% { stroke-dashoffset: 0; } }
+
+    .btn-wrapper {
+      position: relative; width: 170px; height: 170px; margin: 10px auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .countdown-svg { position: absolute; top: 0; left: 0; width: 170px; height: 170px; transform: rotate(-90deg); display: none; }
+    .countdown-circle-bg { fill: none; stroke: #e5e7eb; stroke-width: 10; }
+    .countdown-circle {
+      fill: none; stroke: #f59e0b; stroke-width: 10; stroke-linecap: round;
+      stroke-dasharray: 452; stroke-dashoffset: 452; transition: stroke-dashoffset 0.1s linear, stroke 0.2s;
+    }
+    .record-btn {
+      width: 136px; height: 136px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, #10b981, #059669); color: white;
+      font-size: 18px; font-weight: bold; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.35); outline: none; touch-action: none;
+      transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; z-index: 2;
+    }
+    .record-btn.recording {
+      background: linear-gradient(135deg, #059669, #047857); transform: scale(1.05);
+      box-shadow: 0 0 28px rgba(16, 185, 129, 0.45);
+    }
+    .record-btn.cancelling {
+      background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.65) !important; transform: scale(0.95);
+    }
+    .sub-tip { font-size: 12px; margin-top: 4px; opacity: 0.9; font-weight: 500; }
+    
+    .mobile-actions { display: flex; gap: 10px; justify-content: center; margin: 8px 0; }
+    .mob-btn {
+      border: none; padding: 9px 16px; font-size: 13px; font-weight: 600; border-radius: 20px;
+      cursor: pointer; outline: none; transition: background 0.2s;
+    }
+    .mob-toggle { background: #3b82f6; color: white; }
+    .mob-toggle.recording { background: #ea580c; }
+    .mob-cancel { background: #fee2e2; color: #dc2626; }
+
+    #status { margin: 6px 0; font-size: 13px; color: #4b5563; min-height: 18px; font-weight: 500; }
+    #result-box {
+      margin-top: 8px; padding: 10px 12px; background: #f1f4f8; border-radius: 14px;
+      text-align: left; font-size: 13px; line-height: 1.5; min-height: 70px; max-height: 140px;
+      overflow-y: auto; word-break: break-word; user-select: text; -webkit-user-select: text;
+    }
+    .field-row { margin-bottom: 6px; }
+    .field-label { font-weight: 600; color: #4b5563; font-size: 11px; text-transform: uppercase; }
+    .field-val { margin-top: 2px; color: #111827; }
+
+    .letter-anim {
+      position: absolute; bottom: 40px; left: 40px; font-size: 34px; pointer-events: none;
+      display: none; z-index: 99;
+    }
+    .fly {
+      display: block;
+      animation: sendLetter 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    @keyframes sendLetter {
+      0% { transform: translate(0, 0) scale(0.6) rotate(0deg); opacity: 1; }
+      40% { transform: translate(140px, -110px) scale(1.3) rotate(15deg); opacity: 0.95; }
+      100% { transform: translate(320px, -260px) scale(0.3) rotate(25deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="flyingLetter" class="letter-anim">💌</div>
+    <div class="badge">🇭🇰 邊緣 SenseVoice-Small · 隱私脫敏</div>
+    <h2 style="margin:0 0 2px 0; color:#1f2937;">心靈樹洞</h2>
+
+    <div class="animation-container">
+      <svg id="beepSvg" viewBox="0 0 300 100">
+        <path id="beepPath" class="handwrite-path" d="M 20 80 L 20 20 C 45 20, 50 45, 30 50 C 55 52, 58 80, 20 80 M 70 65 C 60 45, 95 45, 90 65 C 65 65, 65 80, 95 80 M 115 65 C 105 45, 140 45, 135 65 C 110 65, 110 80, 140 80 M 155 95 L 155 50 C 175 48, 185 62, 175 75 C 165 82, 155 78, 155 78 M 205 78 A 2 2 0 1 1 205 74 A 2 2 0 1 1 205 78 M 225 78 A 2 2 0 1 1 225 74 A 2 2 0 1 1 225 78 M 245 78 A 2 2 0 1 1 245 74 A 2 2 0 1 1 245 78"/>
+      </svg>
+    </div>
+
+    <div class="btn-wrapper">
+      <svg class="countdown-svg" id="countdownSvg" viewBox="0 0 170 170">
+        <circle class="countdown-circle-bg" cx="85" cy="85" r="72"></circle>
+        <circle class="countdown-circle" id="countdownCircle" cx="85" cy="85" r="72"></circle>
+      </svg>
+      <button id="recordBtn" class="record-btn">
+        <span id="btnLabel">按住講嘢</span>
+        <span id="btnSubLabel" class="sub-tip">鬆手投遞 💌</span>
+      </button>
+    </div>
+
+    <div class="mobile-actions">
+      <button id="mobToggleBtn" class="mob-btn mob-toggle">手機點擊開始</button>
+      <button id="mobCancelBtn" class="mob-btn mob-cancel">取消錄音</button>
+    </div>
+
+    <div id="status">電腦長按或手機點擊皆可傾訴</div>
+
+    <div id="result-box">
+      <div class="field-row">
+        <div class="field-label">原識別文字 (邊緣 SenseVoice)：</div>
+        <div id="rawResultText" class="field-val">（未開始）</div>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field-label" style="color:#059669;">本地脫敏文字 (安全出網)：</div>
+        <div id="sanitizedResultText" class="field-val" style="color:#065f46; font-weight:500;">（未開始）</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("recordBtn");
+    const btnLabel = document.getElementById("btnLabel");
+    const btnSubLabel = document.getElementById("btnSubLabel");
+    const mobToggleBtn = document.getElementById("mobToggleBtn");
+    const mobCancelBtn = document.getElementById("mobCancelBtn");
+    const statusText = document.getElementById("status");
+    const rawResultText = document.getElementById("rawResultText");
+    const sanitizedResultText = document.getElementById("sanitizedResultText");
+    const beepSvg = document.getElementById("beepSvg");
+    const beepPath = document.getElementById("beepPath");
+    const countdownSvg = document.getElementById("countdownSvg");
+    const countdownCircle = document.getElementById("countdownCircle");
+    const flyingLetter = document.getElementById("flyingLetter");
+
+    const CIRCLE_CIRCUMFERENCE = 452;
+    let isHolding = false;
+    let isCancelling = false;
+    let startTouchY = 0;
+    let recordStartTime = 0;
+    let monitorTimer = null;
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let mediaStream = null;
+
+    function playPaperPlaneSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const duration = 0.45;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < buf.length; i++) data[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const filter = ctx.createBiquadFilter(); filter.type = "bandpass"; filter.Q.value = 3.0;
+        filter.frequency.setValueAtTime(450, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.12);
+        filter.frequency.exponentialRampToValueAtTime(250, ctx.currentTime + duration);
+        const gain = ctx.createGain(); gain.gain.setValueAtTime(0.01, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+        noise.start(); noise.stop(ctx.currentTime + duration);
+      } catch(e){}
+    }
+
+    function triggerLetterAnimation() {
+      flyingLetter.classList.remove("fly");
+      void flyingLetter.offsetWidth;
+      flyingLetter.classList.add("fly");
+      setTimeout(() => { flyingLetter.classList.remove("fly"); }, 900);
+    }
+
+    function resetTimerAndUI() {
+      if (monitorTimer) {
+        clearInterval(monitorTimer);
+        monitorTimer = null;
+      }
+      countdownSvg.style.display = "none";
+      countdownCircle.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
+      countdownCircle.style.stroke = "#f59e0b";
+      beepPath.classList.remove("handwrite-active", "cancelling");
+      beepSvg.style.display = "none";
+    }
+
+    async function startRecording() {
+      if (isHolding) return;
+      isHolding = true;
+      isCancelling = false;
+      audioChunks = [];
+      recordStartTime = Date.now();
+
+      resetTimerAndUI();
+
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(mediaStream);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.start();
+      } catch (err) {
+        statusText.innerText = "❌ 麥克風啟動失敗，請授權收音";
+        isHolding = false;
+        return;
+      }
+
+      btn.classList.add("recording");
+      btn.classList.remove("cancelling");
+      btnLabel.innerText = "正在傾聽";
+      btnSubLabel.innerText = "鬆手投遞 💌";
+      mobToggleBtn.innerText = "點擊投遞 💌";
+      mobToggleBtn.classList.add("recording");
+      statusText.innerText = "🎙️ 邊緣錄音中 (SenseVoice)...";
+      statusText.style.color = "#4b5563";
+      rawResultText.innerText = "（聆聽中...）";
+      sanitizedResultText.innerText = "（等待邊緣節點處理...）";
+
+      beepSvg.style.display = "block";
+      beepPath.classList.remove("cancelling", "handwrite-active");
+      void beepPath.offsetWidth;
+      beepPath.classList.add("handwrite-active");
+
+      monitorTimer = setInterval(() => {
+        if (!isHolding) {
+          clearInterval(monitorTimer);
+          return;
+        }
+        const elapsed = (Date.now() - recordStartTime) / 1000;
+        if (elapsed >= 10 && elapsed < 20) {
+          countdownSvg.style.display = "block";
+          btnLabel.innerText = Math.ceil(20 - elapsed) + "s";
+          btnSubLabel.innerText = "即將結束";
+          countdownCircle.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - (elapsed - 10) / 10);
+          if (elapsed >= 17) countdownCircle.style.stroke = "#ef4444";
+        }
+        if (elapsed >= 20) {
+          stopRecording(true);
+        }
+      }, 100);
+    }
+
+    function cancelRecording() {
+      if (!isHolding) return;
+      isHolding = false;
+      resetTimerAndUI();
+
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+
+      btn.classList.remove("recording", "cancelling");
+      btnLabel.innerText = "按住講嘢";
+      btnSubLabel.innerText = "鬆手投遞 💌";
+      mobToggleBtn.innerText = "手機點擊開始";
+      mobToggleBtn.classList.remove("recording");
+
+      statusText.innerText = "🗑️ 錄音已取消，無資訊留存";
+      statusText.style.color = "#6b7280";
+      rawResultText.innerText = "（已取消）";
+      sanitizedResultText.innerText = "（已取消）";
+    }
+
+    function stopRecording(isAuto = false) {
+      if (!isHolding) return;
+      isHolding = false;
+      
+      // 第一時間清除定時器與倒數環
+      resetTimerAndUI();
+
+      btn.classList.remove("recording", "cancelling");
+      btnLabel.innerText = "按住講嘢";
+      btnSubLabel.innerText = "鬆手投遞 💌";
+      mobToggleBtn.innerText = "手機點擊開始";
+      mobToggleBtn.classList.remove("recording");
+
+      if (isCancelling && !isAuto) {
+        cancelRecording();
+        return;
+      }
+
+      playPaperPlaneSound();
+      triggerLetterAnimation();
+      statusText.innerText = "💌 心事發送中，邊緣節點極速轉錄中...";
+      statusText.style.color = "#4b5563";
+
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.onstop = async () => {
+          if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const durationSec = Math.round((Date.now() - recordStartTime) / 1000);
+
+          const formData = new FormData();
+          formData.append("file", audioBlob, "voice.webm");
+          formData.append("duration", durationSec);
+
+          try {
+            const resp = await fetch("/transcribe", {
+              method: "POST",
+              body: formData
+            });
+            const data = await resp.json();
+
+            if (data.status === "success") {
+              rawResultText.innerText = data.raw_text || "（無語音）";
+              sanitizedResultText.innerText = data.sanitized_text || "（無語音）";
+              statusText.innerText = data.gas_saved
+                ? "✅ 邊緣轉錄完畢，已脫敏同步至 Google Sheets！"
+                : "✅ 邊緣轉錄完畢 (GAS 未綁定或同步失敗)";
+            } else {
+              statusText.innerText = "❌ 邊緣節點處理失敗";
+            }
+          } catch (err) {
+            statusText.innerText = "❌ 無法連線至邊緣節點，請確認伺服器連線狀態";
+            console.error(err);
+          }
+        };
+        mediaRecorder.stop();
+      }
+    }
+
+    btn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      startTouchY = e.touches[0].clientY;
+      startRecording();
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (isHolding && e.touches.length > 0) {
+        if (startTouchY - e.touches[0].clientY > 55) {
+          if (!isCancelling) {
+            isCancelling = true;
+            btn.classList.add("cancelling");
+            beepPath.classList.add("cancelling");
+            btnLabel.innerText = "鬆手取消";
+            btnSubLabel.innerText = "放棄記錄";
+            statusText.innerText = "⚠️ 鬆開手指將取消發送";
+            statusText.style.color = "#dc2626";
+          }
+        } else if (isCancelling) {
+          isCancelling = false;
+          btn.classList.remove("cancelling");
+          beepPath.classList.remove("cancelling");
+          btnLabel.innerText = "正在傾聽";
+          btnSubLabel.innerText = "鬆手投遞 💌";
+          statusText.innerText = "🎙️ 邊緣錄音中 (SenseVoice)...";
+          statusText.style.color = "#4b5563";
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchend", (e) => {
+      if (isHolding) {
+        e.preventDefault();
+        stopRecording();
+      }
+    });
+
+    btn.addEventListener("mousedown", (e) => { e.preventDefault(); startRecording(); });
+    window.addEventListener("mouseup", () => { if (isHolding) stopRecording(); });
+
+    mobToggleBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!isHolding) startRecording(); else stopRecording();
+    });
+
+    mobCancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      cancelRecording();
+    });
+  </script>
+</body>
+</html>
